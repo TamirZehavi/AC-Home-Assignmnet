@@ -1,0 +1,77 @@
+<mat-card class="upload-card">
+  <mat-card-header>
+    <mat-card-title>
+      File Upload
+    </mat-card-title>
+  </mat-card-header>
+  
+  <mat-card-content>
+    <div class="upload-area">
+      <input 
+        #fileInput
+        type="file" 
+        (change)="onFileSelected($event)"
+        [disabled]="uploading"
+        class="file-input"
+        accept=".csv"
+      />
+      
+      <button 
+        mat-raised-button 
+        color="primary"
+        (click)="fileInput.click()"
+        [disabled]="uploading"
+        class="upload-button"
+      >
+        Choose File
+      </button>
+    </div>
+
+    @if (uploadProgress) {
+      <div class="progress-section">
+        <div class="file-info">
+          <span class="file-name">{{ uploadProgress.file?.name }}</span>
+          <span class="file-size">{{ formatFileSize(uploadProgress.file?.size || 0) }}</span>
+        </div>
+        
+        <div class="progress-container">
+          <mat-progress-bar 
+            mode="determinate" 
+            [value]="uploadProgress.progress"
+            [color]="getProgressColor(uploadProgress.status)"
+          ></mat-progress-bar>
+          
+          <div class="progress-text">
+            {{ uploadProgress.progress }}% - {{ getStatusText(uploadProgress.status) }}
+          </div>
+        </div>
+      </div>
+    }
+
+    @if (uploadProgress?.response) {
+      <mat-card class="result-card success">
+        <mat-card-content>
+          <div class="result-header">
+            <h3>Upload Successful!</h3>
+          </div>
+          <div class="result-details">
+            <p><strong>File:</strong> {{ uploadProgress?.response.file?.originalName }}</p>
+            <p><strong>Size:</strong> {{ formatFileSize(uploadProgress?.response.file?.size) }}</p>
+            <p><strong>Type:</strong> {{ uploadProgress?.response.file?.mimetype }}</p>
+          </div>
+        </mat-card-content>
+      </mat-card>
+    }
+
+    @if (uploadProgress?.status === 'error') {
+      <mat-card class="result-card error">
+        <mat-card-content>
+          <div class="result-header">
+            <h3>Upload Failed</h3>
+          </div>
+          <p>Please try again with a different file.</p>
+        </mat-card-content>
+      </mat-card>
+    }
+  </mat-card-content>
+</mat-card>

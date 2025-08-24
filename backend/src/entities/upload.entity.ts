@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
 
 @Entity('uploads')
 export class Upload {
@@ -12,25 +12,8 @@ export class Upload {
   filename: string;
 
   @Column()
-  mimetype: string;
-
-  @Column()
-  size: number;
-
-  @Column()
-  path: string;
-
-  @Column({ nullable: true })
-  jsonFilePath: string;
-
-  @Column({ default: false })
-  isParsed: boolean;
-
-  @Column({ nullable: true })
-  rowCount: number;
-
-  @Column({ nullable: true })
-  parseError: string;
+  @Index()
+  fileHash: string;
 
   @CreateDateColumn()
   createdAt: Date;

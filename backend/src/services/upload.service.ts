@@ -6,16 +6,12 @@ import { Upload } from '../entities/upload.entity';
 export interface CreateUploadDto {
   originalName: string;
   filename: string;
-  mimetype: string;
-  size: number;
-  path: string;
+  fileHash: string;
 }
 
 export interface UpdateUploadParsingDto {
-  jsonFilePath?: string;
-  isParsed: boolean;
-  rowCount?: number;
-  parseError?: string;
+  originalName: string;
+  fileName: string;
 }
 
 @Injectable()
@@ -29,27 +25,17 @@ export class UploadService {
 
   async createUpload(createUploadDto: CreateUploadDto): Promise<Upload> {
     this.logger.log(`Creating upload record: ${createUploadDto.originalName}`);
-    
+
     const upload = this.uploadRepository.create(createUploadDto);
     const savedUpload = await this.uploadRepository.save(upload);
-    
+
     this.logger.log(`Upload record created with ID: ${savedUpload.id}`);
     return savedUpload;
   }
 
-  async updateUploadParsing(id: number, updateDto: UpdateUploadParsingDto): Promise<Upload | null> {
-    this.logger.log(`Updating parsing info for upload ID: ${id}`);
-    
-    await this.uploadRepository.update(id, updateDto);
-    const updatedUpload = await this.uploadRepository.findOne({ where: { id } });
-    
-    this.logger.log(`Upload parsing info updated for ID: ${id}`);
-    return updatedUpload;
-  }
-
   async findAll(): Promise<Upload[]> {
     return this.uploadRepository.find({
-      order: { createdAt: 'DESC' }
+      order: { createdAt: 'DESC' },
     });
   }
 
@@ -57,22 +43,12 @@ export class UploadService {
     return this.uploadRepository.findOne({ where: { id } });
   }
 
-  async findByFilename(filename: string): Promise<Upload | null> {
-    return this.uploadRepository.findOne({ where: { filename } });
+  async findFileByHash(fileHash: string): Promise<Upload | null> {
+    return this.uploadRepository.findOne({ where: { fileHash } });
   }
 
   async getUploadStats() {
     const total = await this.uploadRepository.count();
-    const parsed = await this.uploadRepository.count({ where: { isParsed: true } });
-    const failed = await this.uploadRepository.count({ 
-      where: { isParsed: false, parseError: IsNull() } 
-    });
-
-    return {
-      total,
-      parsed,
-      failed,
-      pending: total - parsed - failed
-    };
+    return { total };
   }
 }

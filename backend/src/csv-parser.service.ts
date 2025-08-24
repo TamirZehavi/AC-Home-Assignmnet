@@ -6,9 +6,7 @@ import * as path from 'path';
 export interface CsvParseResult {
   success: boolean;
   data?: any[];
-  jsonFilePath?: string;
-  rowCount?: number;
-  error?: string;
+  errorMessage?: string;
 }
 
 @Injectable()
@@ -29,10 +27,11 @@ export class CsvParserService {
       // Check if file exists
       if (!fs.existsSync(csvFilePath)) {
         this.logger.error(`CSV file not found: ${csvFilePath}`);
-        return resolve({
+        const result: CsvParseResult = {
           success: false,
-          error: 'CSV file not found',
-        });
+          errorMessage: 'CSV file not found',
+        };
+        return resolve(result);
       }
 
       fs.createReadStream(csvFilePath)
@@ -59,27 +58,28 @@ export class CsvParserService {
               `Successfully parsed ${results.length} rows from CSV`,
             );
             this.logger.log(`JSON saved to: ${jsonFilePath}`);
-
-            resolve({
+            const result: CsvParseResult = {
               success: true,
               data: results,
-              jsonFilePath: jsonFilePath,
-              rowCount: results.length,
-            });
+            };
+
+            resolve(result);
           } catch (error) {
             this.logger.error(`Error saving JSON file: ${error.message}`);
-            resolve({
+            const result: CsvParseResult = {
               success: false,
-              error: `Error saving JSON: ${error.message}`,
-            });
+              errorMessage: `Error saving JSON: ${error.message}`,
+            };
+            resolve(result);
           }
         })
         .on('error', (error) => {
           this.logger.error(`Error parsing CSV: ${error.message}`);
-          resolve({
+          const result: CsvParseResult = {
             success: false,
-            error: `Error parsing CSV: ${error.message}`,
-          });
+            errorMessage: `Error parsing CSV: ${error.message}`,
+          };
+          resolve(result);
         });
     });
   }

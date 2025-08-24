@@ -1,14 +1,18 @@
 import { CommonModule } from '@angular/common';
-import { Component, inject } from '@angular/core';
+import { Component, ElementRef, inject, ViewChild } from '@angular/core';
 import { MatButton } from '@angular/material/button';
 import {
-    MatCard,
-    MatCardContent,
-    MatCardHeader,
-    MatCardTitle,
+  MatCard,
+  MatCardContent,
+  MatCardHeader,
+  MatCardTitle,
 } from '@angular/material/card';
 import { MatProgressBar } from '@angular/material/progress-bar';
-import { LoadingStatus, UploadProgress, UploadService } from '../services/upload.service';
+import {
+  LoadingStatus,
+  UploadProgress,
+  UploadService,
+} from '../services/upload.service';
 
 @Component({
   selector: 'app-file-upload',
@@ -26,6 +30,7 @@ import { LoadingStatus, UploadProgress, UploadService } from '../services/upload
   styleUrl: './file-upload.component.scss',
 })
 export class FileUploadComponent {
+  @ViewChild('fileInput') fileInput: ElementRef | undefined;
   uploadProgress: UploadProgress | null = null;
   uploading = false;
   uploadService = inject(UploadService);
@@ -35,7 +40,12 @@ export class FileUploadComponent {
     if (input.files && input.files.length > 0) {
       const file = input.files[0];
       this.startUpload(file);
+      this.clearFileSelection();
     }
+  }
+
+  private clearFileSelection() {
+    if (this.fileInput) this.fileInput.nativeElement.value = '';
   }
 
   getStatusText(status: string): string {

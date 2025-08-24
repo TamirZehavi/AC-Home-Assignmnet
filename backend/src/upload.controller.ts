@@ -1,22 +1,25 @@
+import { UploadFileResponse } from '@ac-assignment/shared-types';
 import {
   BadRequestException,
   Controller,
   Get,
+  HttpStatus,
+  InternalServerErrorException,
   Logger,
   Post,
-  Req,
+  Res,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { MulterOptions } from '@nestjs/platform-express/multer/interfaces/multer-options.interface';
-import type { Request } from 'express';
+import type { Response } from 'express';
 import { diskStorage } from 'multer';
-import { extname } from 'path';
+import path, { extname } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { CsvParseResult, CsvParserService } from './csv-parser.service';
 import { UploadService } from './services/upload.service';
-import { UplopadFileResponse } from './types/common.types';
+import { FileHashUtil } from './utils/file-hash.util';
 
 const FILE_SIZE_LIMIT_MB = (sizeBytes: number) => sizeBytes * 1024 * 1024;
 
@@ -71,16 +74,24 @@ export class UploadController {
   @UseInterceptors(FileInterceptor('file', uploadRequestOptions))
   async uploadFile(
     @UploadedFile() file: Express.Multer.File,
-    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
   ) {
-    this.logger.debug('Upload endpoint called');
-    this.logger.debug(
-      `Request headers: ${JSON.stringify(req.headers, null, 2)}`,
-    );
-
     if (!file) {
       this.logger.error('No file uploaded');
       throw new BadRequestException('No file uploaded');
+    }
+
+    //Check for duplicates
+    const fileHash = await FileHashUtil.calculateHash(file.path).catch(() => {
+      throw new InternalServerErrorException('File hash calculation failed');
+    });
+    const existingFile = await this.uploadService.findFileByHash(fileHash);
+    if (existingFile) {
+      res.status(HttpStatus.OK);
+      const result: UploadFileResponse = {
+        isDuplicate: true,
+      };
+      return result;
     }
 
     this.logger.log(`File uploaded successfully: ${file.originalname}`);
@@ -99,18 +110,6 @@ export class UploadController {
       )}`,
     );
 
-    // Save upload record to database
-    this.logger.log('About to call uploadService.createUpload...');
-    const uploadRecord = await this.uploadService.createUpload({
-      originalName: file.originalname,
-      filename: file.filename,
-      mimetype: file.mimetype,
-      size: file.size,
-      path: file.path,
-    });
-    this.logger.log(`Upload record created with ID: ${uploadRecord.id}`);
-
-    // Parse CSV file if it's a CSV
     let csvParseResult: CsvParseResult | null = null;
     this.logger.log('Parsing CSV file...');
     try {
@@ -118,33 +117,27 @@ export class UploadController {
         file.path,
       );
 
-      // Update database record with parsing results
-      await this.uploadService.updateUploadParsing(uploadRecord.id, {
-        isParsed: csvParseResult?.success || false,
-        jsonFilePath: csvParseResult?.jsonFilePath,
-        rowCount: csvParseResult?.rowCount,
-        parseError: csvParseResult?.success ? undefined : csvParseResult?.error,
-      });
-
       if (csvParseResult?.success) {
-        this.logger.log(
-          `CSV parsed successfully: ${csvParseResult.rowCount} rows`,
-        );
+        this.logger.log(`CSV parsed successfully`);
+        this.logger.log('About to call uploadService.createUpload...');
+        const uploadRecord = await this.uploadService.createUpload({
+          originalName: file.originalname,
+          filename: path.basename(file.filename),
+          fileHash,
+        });
+        this.logger.log(`Upload record created with ID: ${uploadRecord.id}`);
       } else {
-        this.logger.error(`CSV parsing failed: ${csvParseResult?.error}`);
+        throw new InternalServerErrorException(
+          csvParseResult.errorMessage || 'Parsing CSV failed',
+        );
       }
     } catch (error) {
       this.logger.error(`CSV parsing error: ${error.message}`);
-
-      // Update database record with error
-      await this.uploadService.updateUploadParsing(uploadRecord.id, {
-        isParsed: false,
-        parseError: error.message,
-      });
+      throw new BadRequestException(`CSV parsing error: ${error.message}`);
     }
 
-    const result: UplopadFileResponse = {
-      message: 'File uploaded successfully',
+    const result: UploadFileResponse = {
+      isDuplicate: false,
       file: {
         filename: file.filename,
         originalName: file.originalname,
@@ -166,7 +159,7 @@ export class UploadController {
   }
 
   @Get('list')
-  async getAllUploads() {
+  async getAllFiles() {
     const uploads = await this.uploadService.findAll();
     return {
       message: 'Upload list retrieved successfully',

@@ -14,3 +14,5 @@ export interface ExistingFileResponse {
 }
 
 export type UploadFileResponse = FileCreatedResponse | ExistingFileResponse;
+
+export type FileListResponse = { name: string; id: string }[];

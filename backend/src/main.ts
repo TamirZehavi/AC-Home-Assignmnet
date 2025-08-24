@@ -29,8 +29,16 @@ async function connectToAngularSSR(app: INestApplication) {
     const angularAppUrl = pathToFileURL(angularAppPath).href;
     const angularApp = await import(angularAppUrl);
 
-    // Use Angular app for all non-API routes
-    app.use('/', angularApp.default);
+    // Use Angular app for all non-API routes ONLY
+    app.use((req, res, next) => {
+      // Skip Angular SSR for API routes
+      if (req.path.startsWith('/api')) {
+        return next(); // Let NestJS handle API routes
+      }
+
+      // Use Angular SSR for all other routes
+      return angularApp.default(req, res, next);
+    });
 
     console.log('Angular SSR integrated successfully');
   } catch (error) {

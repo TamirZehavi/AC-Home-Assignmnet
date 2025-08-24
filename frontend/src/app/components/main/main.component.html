@@ -1,0 +1,8 @@
+<div class="main-container">
+    <div class="side-bar">
+        <app-side-bar [selectedRoute]="initialRoute" (onRouteSelected)="routeSelected($event)"></app-side-bar>
+    </div>
+    <div class="main-content">
+        <router-outlet></router-outlet>
+    </div>
+</div>

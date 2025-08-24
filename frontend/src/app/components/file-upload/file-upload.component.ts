@@ -12,7 +12,7 @@ import {
   LoadingStatus,
   UploadProgress,
   UploadService,
-} from '../services/upload.service';
+} from '../../services/upload.service';
 
 @Component({
   selector: 'app-file-upload',

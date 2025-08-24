@@ -1,0 +1,41 @@
+.side-bar {
+  height: 100vh;
+  width: 80px;
+  background-color: #f8f9fa;
+  border-right: 1px solid #e0e0e0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px 0;
+
+  .side-bar-icon {
+    font-size: 28px;
+    width: 28px;
+    height: 28px;
+    color: #6c757d;
+    cursor: pointer;
+    margin: 15px 0;
+    padding: 10px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    &:hover {
+      background-color: #e9ecef;
+      color: #495057;
+      transform: scale(1.1);
+    }
+
+    &.selected {
+      color: #2196F3;
+      background-color: #e3f2fd;
+      box-shadow: 0 2px 8px rgba(33, 150, 243, 0.3);
+    }
+  }
+}
+
+/* Adjust main content to account for fixed sidebar */
+.main-content {
+  margin-right: 80px;
+}

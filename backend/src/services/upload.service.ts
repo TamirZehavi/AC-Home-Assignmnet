@@ -43,6 +43,22 @@ export class UploadService {
     return this.uploadRepository.findOne({ where: { id } });
   }
 
+  async addOne(upload: Upload): Promise<Upload | null> {
+    return this.uploadRepository.save(upload);
+  }
+
+  async deleteOne(id: number): Promise<Upload | null> {
+    const upload = await this.uploadRepository.findOne({ where: { id } });
+    if (upload) {
+      await this.uploadRepository.remove(upload);
+    }
+    return upload;
+  }
+
+  async deleteAll(): Promise<void> {
+    await this.uploadRepository.clear();
+  }
+
   async findFileByHash(fileHash: string): Promise<Upload | null> {
     return this.uploadRepository.findOne({ where: { fileHash } });
   }

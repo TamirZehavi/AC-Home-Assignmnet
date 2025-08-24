@@ -1,0 +1,11 @@
+<div class="side-bar">
+  @for (icon of icons | keyvalue; track icon.key) {
+    <div (click)="onRouteSelect($any(icon.key))">
+      <mat-icon
+        class="side-bar-icon"
+        [ngClass]="{ selected: icon.key === selectedRoute }"
+        >{{ icon.value.icon }}</mat-icon
+      >
+    </div>
+  }
+</div>

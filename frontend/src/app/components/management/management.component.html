@@ -1,0 +1,23 @@
+@if (isLoading()) {
+  <p>Loading...</p>
+} @else {
+  <button (click)="onDeleteAllClick()">Delete All</button>
+  <table>
+    <thead>
+      <tr>
+        <th>File Name</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (file of files; track file) {
+        <tr>
+          <td>{{ file.name }}</td>
+          <td class="delete-icon" (click)="onDeleteFileClick(file.id)">
+            <mat-icon>delete</mat-icon>
+          </td>
+        </tr>
+      }
+    </tbody>
+  </table>
+}

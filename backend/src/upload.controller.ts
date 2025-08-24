@@ -1,11 +1,16 @@
-import { UploadFileResponse } from '@ac-assignment/shared-types';
+import {
+  FileListResponse,
+  UploadFileResponse,
+} from '@ac-assignment/shared-types';
 import {
   BadRequestException,
   Controller,
+  Delete,
   Get,
   HttpStatus,
   InternalServerErrorException,
   Logger,
+  Param,
   Post,
   Res,
   UploadedFile,
@@ -17,9 +22,10 @@ import type { Response } from 'express';
 import { diskStorage } from 'multer';
 import path, { extname } from 'path';
 import { v4 as uuidv4 } from 'uuid';
-import { CsvParseResult, CsvParserService } from './csv-parser.service';
+import { CsvParseResult, FilesUtil } from './utils/files.util';
 import { UploadService } from './services/upload.service';
 import { FileHashUtil } from './utils/file-hash.util';
+import { EncryptionUtil } from './utils/encryption.util';
 
 const FILE_SIZE_LIMIT_MB = (sizeBytes: number) => sizeBytes * 1024 * 1024;
 
@@ -61,16 +67,17 @@ const uploadRequestOptions: MulterOptions = {
   },
 };
 
-@Controller('upload')
-export class UploadController {
-  private readonly logger = new Logger(UploadController.name);
+@Controller('files')
+export class FilesController {
+  private readonly logger = new Logger(FilesController.name);
 
   constructor(
-    private readonly csvParserService: CsvParserService,
+    private readonly filesUtil: FilesUtil,
     private readonly uploadService: UploadService,
+    private readonly encryptionUtil: EncryptionUtil,
   ) {}
 
-  @Post()
+  @Post('upload')
   @UseInterceptors(FileInterceptor('file', uploadRequestOptions))
   async uploadFile(
     @UploadedFile() file: Express.Multer.File,
@@ -113,9 +120,7 @@ export class UploadController {
     let csvParseResult: CsvParseResult | null = null;
     this.logger.log('Parsing CSV file...');
     try {
-      csvParseResult = await this.csvParserService.parseAndSaveAsJson(
-        file.path,
-      );
+      csvParseResult = await this.filesUtil.parseAndSaveAsJson(file.path);
 
       if (csvParseResult?.success) {
         this.logger.log(`CSV parsed successfully`);
@@ -161,10 +166,41 @@ export class UploadController {
   @Get('list')
   async getAllFiles() {
     const uploads = await this.uploadService.findAll();
-    return {
-      message: 'Upload list retrieved successfully',
-      uploads,
-    };
+
+    // Encrypt IDs and remove sensitive information
+    const safeUploads: FileListResponse = uploads.map((upload) => ({
+      id: this.encryptionUtil.encryptId(upload.id), // Encrypted ID
+      name: upload.originalName,
+    }));
+
+    return safeUploads;
+  }
+
+  @Get(':encryptedId')
+  async getFileById(@Param('encryptedId') encryptedId: string) {
+    try {
+      // Decrypt the ID
+      const realId = this.encryptionUtil.decryptId(encryptedId);
+      const upload = await this.uploadService.findOne(realId);
+
+      if (!upload) {
+        throw new BadRequestException('File not found');
+      }
+
+      // Return safe data without sensitive information
+      return {
+        message: 'File retrieved successfully',
+        file: {
+          id: encryptedId, // Return the encrypted ID
+          originalName: upload.originalName,
+          filename: upload.filename,
+          createdAt: upload.createdAt,
+          updatedAt: upload.updatedAt,
+        },
+      };
+    } catch (error) {
+      throw new BadRequestException('Invalid file ID');
+    }
   }
 
   @Get('stats')
@@ -174,5 +210,46 @@ export class UploadController {
       message: 'Upload statistics retrieved successfully',
       stats,
     };
+  }
+
+  @Delete('delete/:encryptedId')
+  async deleteOne(@Param('encryptedId') encryptedId: string) {
+    try {
+      // Decrypt the ID
+      const id = this.encryptionUtil.decryptId(encryptedId);
+      const upload = await this.uploadService.deleteOne(id);
+
+      if (!upload) {
+        throw new BadRequestException('File not found');
+      }
+
+      await this.filesUtil.deleteUploadFile(upload.filename).catch(() => {
+        //rollback
+        this.uploadService.addOne(upload);
+        throw new InternalServerErrorException('Local file deletion failed');
+      });
+
+      return;
+    } catch (error) {
+      throw new BadRequestException('Invalid file ID');
+    }
+  }
+
+  @Delete("deleteAll")
+  async deleteAll() {
+    try {
+      const uploads = await this.uploadService.findAll();
+
+      for (const upload of uploads) {
+        await this.filesUtil.deleteUploadFile(upload.filename).catch(() => {
+          this.logger.error(`Failed to delete file: ${upload.filename}`);
+        });
+      }
+
+      await this.uploadService.deleteAll();
+      return;
+    } catch (error) {
+      throw new InternalServerErrorException('Failed to delete all files');
+    }
   }
 }

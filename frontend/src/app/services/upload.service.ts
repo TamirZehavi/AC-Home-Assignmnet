@@ -1,4 +1,4 @@
-import { UploadFileResponse } from '@ac-assignment/shared-types';
+import { FileListResponse, UploadFileResponse } from '@ac-assignment/shared-types';
 import { Injectable } from '@angular/core';
 import {
   HttpClient,
@@ -16,13 +16,13 @@ export interface UploadProgress {
   response?: UploadFileResponse;
 }
 
-export type LoadingStatus = 'pending' | 'uploading' | 'completed' | 'error';
+export type LoadingStatus = 'pending' | 'loading' | 'completed' | 'error';
 
 @Injectable({
   providedIn: 'root',
 })
 export class UploadService {
-  private apiUrl = '/api/upload';
+  private apiUrl = '/api/files';
 
   constructor(private http: HttpClient) {}
 
@@ -30,51 +30,64 @@ export class UploadService {
     const formData = new FormData();
     formData.append('file', file);
 
-    const req = new HttpRequest('POST', this.apiUrl, formData, {
+    const req = new HttpRequest('POST', `${this.apiUrl}/upload`, formData, {
       reportProgress: true,
     });
 
     return this.http.request<UploadFileResponse>(req).pipe(
-      map((event) => determineProgress(event)),
+      map((event) => this.determineProgress(event, file)),
       catchError((error) => of(error)),
     );
+  }
 
-    function determineProgress(
-      event: HttpEvent<UploadFileResponse>,
-    ): UploadProgress {
-      switch (event.type) {
-        case HttpEventType.Sent:
-          return {
-            progress: 0,
-            status: 'uploading',
-            file,
-          };
+  getList() {
+    return this.http.get<FileListResponse>(`${this.apiUrl}/list`);
+  }
 
-        case HttpEventType.UploadProgress:
-          const progress = event.total
-            ? Math.round((100 * event.loaded) / event.total)
-            : 0;
-          return {
-            progress,
-            status: 'uploading',
-            file,
-          };
+  delete(id: string) {
+    return this.http.delete(`${this.apiUrl}/delete/${id}`);
+  }
 
-        case HttpEventType.Response:
-          return {
-            progress: 100,
-            status: 'completed',
-            file,
-            response: event.body ?? undefined,
-          };
+  deleteAll() {
+    return this.http.delete(`${this.apiUrl}/deleteAll`);
+  }
 
-        default:
-          return {
-            progress: 0,
-            status: 'pending',
-            file,
-          };
-      }
+  determineProgress(
+    event: HttpEvent<UploadFileResponse>,
+    file: File,
+  ): UploadProgress {
+    switch (event.type) {
+      case HttpEventType.Sent:
+        return {
+          progress: 0,
+          status: 'loading',
+          file,
+        };
+
+      case HttpEventType.UploadProgress:
+        const progress = event.total
+          ? Math.round((100 * event.loaded) / event.total)
+          : 0;
+        return {
+          progress,
+          status: 'loading',
+          file,
+        };
+
+      case HttpEventType.Response:
+        return {
+          progress: 100,
+          status: 'completed',
+          file,
+          response: event.body ?? undefined,
+        };
+
+      default:
+        return {
+          progress: 0,
+          status: 'pending',
+          file,
+        };
     }
   }
 }

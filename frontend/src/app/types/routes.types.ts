@@ -1,4 +1,4 @@
-import { Enum } from "./util.types";
+import { Enum } from '@ac-assignment/shared-types';
 
 export const AppRoutes = {
   Uploads: 'uploads',

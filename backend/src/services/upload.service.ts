@@ -1,7 +1,19 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, IsNull } from 'typeorm';
+import { Job } from 'src/entities/job.entity';
+import { Repository } from 'typeorm';
 import { Upload } from '../entities/upload.entity';
+import { FileHashUtil } from 'src/utils/file-hash.util';
+// import { Common } from '@ac-assignment/shared-types';
+import { CsvParseResult, FilesUtil } from 'src/utils/files.util';
+import path from 'path';
+import { UpdateDto } from 'src/types/types';
+import { Common } from '@ac-assignment/shared-types';
+import { Cron } from '@nestjs/schedule';
 
 export interface CreateUploadDto {
   originalName: string;
@@ -21,13 +33,30 @@ export class UploadService {
   constructor(
     @InjectRepository(Upload)
     private readonly uploadRepository: Repository<Upload>,
+    @InjectRepository(Job)
+    private readonly jobRepository: Repository<Job>,
+    private filesUtil: FilesUtil,
   ) {}
+
+  @Cron('0 0 * * *')
+  async cleanupOldJobs() {
+    const threeDaysAgo = new Date();
+    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+
+    await this.jobRepository
+      .createQueryBuilder()
+      .delete()
+      .where('createdAt < :date', { date: threeDaysAgo })
+      .execute();
+
+    this.logger.log('Old jobs cleaned up');
+  }
 
   async createUpload(createUploadDto: CreateUploadDto): Promise<Upload> {
     this.logger.log(`Creating upload record: ${createUploadDto.originalName}`);
 
     const upload = this.uploadRepository.create(createUploadDto);
-    const savedUpload = await this.uploadRepository.save(upload);
+    const savedUpload = await this.addOne(upload);
 
     this.logger.log(`Upload record created with ID: ${savedUpload.id}`);
     return savedUpload;
@@ -43,7 +72,7 @@ export class UploadService {
     return this.uploadRepository.findOne({ where: { id } });
   }
 
-  async addOne(upload: Upload): Promise<Upload | null> {
+  async addOne(upload: Upload) {
     return this.uploadRepository.save(upload);
   }
 
@@ -66,5 +95,80 @@ export class UploadService {
   async getUploadStats() {
     const total = await this.uploadRepository.count();
     return { total };
+  }
+
+  async createJob(createJobDto: { filePath: string }) {
+    const job = this.jobRepository.create({
+      status: Common.LoadingStatus.Pending,
+      filePath: createJobDto.filePath,
+    });
+    return this.jobRepository.save(job);
+  }
+
+  async getJob(id: number) {
+    const job = await this.jobRepository.findOne({ where: { id } });
+    return job;
+  }
+
+  async updateJob(id: number, updateStatusDto: UpdateDto<Job>) {
+    await this.jobRepository.update(id, {
+      status: updateStatusDto.status,
+      error: updateStatusDto.error,
+      filePath: updateStatusDto.filePath,
+    });
+  }
+
+  async processJob(file: Express.Multer.File, job: Job): Promise<void> {
+    await this.updateJob(job.id, { status: Common.LoadingStatus.Loading });
+    //Check for duplicates
+    const fileHash = await FileHashUtil.calculateHash(file.path);
+    if (!fileHash) {
+      await this.updateJob(job.id, {
+        status: Common.LoadingStatus.Error,
+        error: 'File hash calculation failed',
+      });
+      return;
+    }
+    const existingFile = await this.findFileByHash(fileHash);
+    if (existingFile) {
+      await this.updateJob(job.id, {
+        status: Common.LoadingStatus.Success,
+        filePath: path.join(process.cwd(), 'uploads', existingFile.filename),
+      });
+      await this.filesUtil.deleteFile(file.path);
+      return;
+    }
+
+    let csvParseResult: CsvParseResult | null = null;
+    this.logger.log('Parsing CSV file...');
+    try {
+      csvParseResult = await this.filesUtil.parseAndSaveAsJson(file.path);
+
+      if (csvParseResult?.success) {
+        this.logger.log(`CSV parsed successfully`);
+        this.logger.log('About to call uploadService.createUpload...');
+        const uploadRecord = await this.createUpload({
+          originalName: file.originalname,
+          filename: path.basename(file.filename),
+          fileHash,
+        });
+        this.logger.log(`Upload record created with ID: ${uploadRecord.id}`);
+        await this.updateJob(job.id, {
+          status: Common.LoadingStatus.Success,
+          filePath: file.path,
+        });
+      } else {
+        await this.updateJob(job.id, {
+          status: Common.LoadingStatus.Error,
+          error: csvParseResult.errorMessage || 'Parsing CSV failed',
+        });
+      }
+    } catch (error) {
+      this.logger.error(`CSV parsing error: ${error.message}`);
+      await this.updateJob(job.id, {
+        status: Common.LoadingStatus.Error,
+        error: error.message,
+      });
+    }
   }
 }

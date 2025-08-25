@@ -1,8 +1,8 @@
-import { FileListResponse } from '@ac-assignment/shared-types';
+import { API, Common } from '@ac-assignment/shared-types';
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { MatIcon } from '@angular/material/icon';
 import { catchError, EMPTY, tap } from 'rxjs';
-import { LoadingStatus, UploadService } from '../../services/upload.service';
+import { UploadService } from '../../services/upload.service';
 
 @Component({
   selector: 'app-management',
@@ -12,14 +12,14 @@ import { LoadingStatus, UploadService } from '../../services/upload.service';
 })
 export class ManagementComponent implements OnInit {
   uploadService = inject(UploadService);
-  loadingStatus = signal<LoadingStatus>('loading');
+  loadingStatus = signal<Common.LoadingStatus>('loading');
 
   isLoading = computed(() => {
     const loadingState = this.loadingStatus();
     return loadingState === 'loading';
   });
 
-  files: FileListResponse = [];
+  files: API.FileListResponse = [];
 
   ngOnInit(): void {
     this.uploadService
@@ -27,10 +27,10 @@ export class ManagementComponent implements OnInit {
       .pipe(
         tap((response) => {
           this.files = response;
-          this.loadingStatus.set('completed');
+          this.loadingStatus.set(Common.LoadingStatus.Success);
         }),
         catchError(() => {
-          this.loadingStatus.set('error');
+          this.loadingStatus.set(Common.LoadingStatus.Error);
           return EMPTY;
         }),
       )

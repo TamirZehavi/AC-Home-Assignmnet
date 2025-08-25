@@ -1,4 +1,8 @@
 {
+  "engines": {
+    "node": "^22.5.1",
+    "npm": "^10.8.2"
+  },
   "dependencies": {
     "@angular/cli": "^19.2.15",
     "@nestjs/cli": "^11.0.10"

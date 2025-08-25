@@ -8,7 +8,7 @@ export class EncryptionUtil {
    * Simple ID obfuscation using Base64 encoding with a salt
    * Easy to understand and explain in interviews
    */
-  encryptId(id: number): string {
+  encrypt(id: number): string {
     try {
       // Add salt to make it less obvious
       const saltedId = `${this.secret}-${id}-${this.secret}`;
@@ -23,7 +23,7 @@ export class EncryptionUtil {
   /**
    * Decrypt the obfuscated ID back to original number
    */
-  decryptId(encryptedId: string): number {
+  decrypt(encryptedId: string): number {
     try {
       // Decode from Base64
       const decoded = Buffer.from(encryptedId, 'base64').toString('utf8');

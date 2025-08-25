@@ -1,6 +1,10 @@
 {
   "name": "@ac-assignment/shared-types",
   "version": "1.0.0",
+  "engines": {
+    "node": "^22.5.1",
+    "npm": "^10.8.2"
+  },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {

@@ -1,5 +1,12 @@
+import { API, Common } from '@ac-assignment/shared-types';
 import { CommonModule } from '@angular/common';
-import { Component, ElementRef, inject, ViewChild } from '@angular/core';
+import {
+  Component,
+  ElementRef,
+  inject,
+  signal,
+  ViewChild,
+} from '@angular/core';
 import { MatButton } from '@angular/material/button';
 import {
   MatCard,
@@ -8,11 +15,8 @@ import {
   MatCardTitle,
 } from '@angular/material/card';
 import { MatProgressBar } from '@angular/material/progress-bar';
-import {
-  LoadingStatus,
-  UploadProgress,
-  UploadService,
-} from '../../services/upload.service';
+import { UploadService } from '../../services/upload.service';
+import { UploadProgress } from '../../types/upload.types';
 
 @Component({
   selector: 'app-file-upload',
@@ -31,14 +35,27 @@ import {
 })
 export class FileUploadComponent {
   @ViewChild('fileInput') fileInput: ElementRef | undefined;
-  uploadProgress: UploadProgress | null = null;
-  uploading = false;
+  state = {
+    uploadProgress: signal<UploadProgress | null>(null),
+    uploading: signal(false),
+    selectedFile: signal<File | null>(null),
+    jobStatus: signal<API.JobStatusResponse | null>(null),
+  };
+
+  loadingToStatusText: {[key in Common.LoadingStatus]: string} = {
+    [Common.LoadingStatus.Pending]: 'Upload Pending',
+    [Common.LoadingStatus.Loading]: 'Uploading...',
+    [Common.LoadingStatus.Success]: 'Upload Successful!',
+    [Common.LoadingStatus.Error]: 'Upload Failed',
+  };
+
   uploadService = inject(UploadService);
 
   onFileSelected(event: Event) {
     const input = event.target as HTMLInputElement;
     if (input.files && input.files.length > 0) {
       const file = input.files[0];
+      this.state.selectedFile.set(file);
       this.startUpload(file);
       this.clearFileSelection();
     }
@@ -46,10 +63,6 @@ export class FileUploadComponent {
 
   private clearFileSelection() {
     if (this.fileInput) this.fileInput.nativeElement.value = '';
-  }
-
-  getStatusText(status: string): string {
-    return status.charAt(0).toUpperCase() + status.slice(1);
   }
 
   formatFileSize(bytes: number): string {
@@ -60,11 +73,13 @@ export class FileUploadComponent {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   }
 
-  getProgressColor(status: LoadingStatus): 'primary' | 'accent' | 'warn' {
+  getProgressColor(
+    status?: Common.LoadingStatus,
+  ): 'primary' | 'accent' | 'warn' {
     switch (status) {
-      case 'completed':
+      case Common.LoadingStatus.Success:
         return 'primary';
-      case 'error':
+      case Common.LoadingStatus.Error:
         return 'warn';
       default:
         return 'accent';
@@ -76,26 +91,27 @@ export class FileUploadComponent {
   }
 
   private startUpload(file: File) {
-    this.uploading = true;
-    this.uploadProgress = null;
+    this.state.uploading.set(true);
+    this.state.uploadProgress.set(null);
 
-    this.uploadService.uploadFile(file).subscribe({
-      next: (progress) => {
-        this.uploadProgress = progress;
-        console.log('Upload progress:', progress);
+    this.uploadService.uploadFileWithAutoDownload(file).subscribe({
+      next: (value) => {
+        if (value.progress) this.state.uploadProgress.set(value.progress);
+        if (value.jobStatus) this.state.jobStatus.set(value.jobStatus);
+        console.log('Upload progress:', value);
       },
       error: (error) => {
         console.error('Upload error:', error);
-        this.uploadProgress = {
+        this.state.uploadProgress.set({
           progress: 0,
           status: 'error',
           file,
-        };
-        this.uploading = false;
+        });
+        this.state.uploading.set(false);
       },
       complete: () => {
         console.log('Upload completed');
-        this.uploading = false;
+        this.state.uploading.set(false);
       },
     });
   }

@@ -9,7 +9,7 @@
         #fileInput
         type="file"
         (change)="onFileSelected($event)"
-        [disabled]="uploading"
+        [disabled]="state.uploading()"
         class="file-input"
         accept=".csv"
       />
@@ -18,69 +18,73 @@
         mat-raised-button
         color="primary"
         (click)="fileInput.click()"
-        [disabled]="uploading"
+        [disabled]="state.uploading()"
         class="upload-button"
       >
         Choose File
       </button>
     </div>
 
-    @if (uploadProgress) {
+    @if (state.uploadProgress()) {
       <div class="progress-section">
         <div class="file-info">
-          <span class="file-name">{{ uploadProgress.file?.name }}</span>
+          <span class="file-name">{{ state.selectedFile()?.name }}</span>
           <span class="file-size">{{
-            formatFileSize(uploadProgress.file?.size || 0)
+            formatFileSize(state.selectedFile()?.size || 0)
           }}</span>
         </div>
 
         <div class="progress-container">
           <mat-progress-bar
             mode="determinate"
-            [value]="uploadProgress.progress"
-            [color]="getProgressColor(uploadProgress.status)"
+            [value]="state.uploadProgress()?.progress"
+            [color]="getProgressColor(state.uploadProgress()?.status)"
           ></mat-progress-bar>
 
           <div class="progress-text">
-            {{ uploadProgress.progress }}% -
-            {{ getStatusText(uploadProgress.status) }}
+            @let status = state.uploadProgress()?.status;
+            {{ state.uploadProgress()?.progress }}% -
+            {{ status ? loadingToStatusText[status] : "" }}
           </div>
         </div>
       </div>
     }
 
-    @if (uploadProgress && uploadProgress.response) {
+    @if (state.uploadProgress()?.progress === 100) {
       <mat-card class="result-card success">
         <mat-card-content>
           <div class="result-header">
+            @let jobStatus = state.jobStatus()?.status;
             <h3>Upload Successful!</h3>
+            @if (jobStatus === "loading") {
+              <h3>Please stand by for file to download</h3>
+            }
+            @if (jobStatus === "success") {
+              <h3>Downloading</h3>
+            }
+            @if (jobStatus === "error") {
+              <h3>Error downloading the file</h3>
+            }
           </div>
           <div class="result-details">
-            @if (!uploadProgress.response.isDuplicate) {
-              <p>
-                <strong>File:</strong>
-                {{ uploadProgress.response.file.originalName }}
-              </p>
-              <p>
-                <strong>Size:</strong>
-                {{ formatFileSize(uploadProgress.response.file.size) }}
-              </p>
-              <p>
-                <strong>Type:</strong>
-                {{ uploadProgress.response.file.mimetype }}
-              </p>
-            } @else {
-              <p>
-                <strong>Info:</strong>
-                This file has already been uploaded.
-              </p>
-            }
+            <p>
+              <strong>File:</strong>
+              {{ state.selectedFile()?.name }}
+            </p>
+            <p>
+              <strong>Size:</strong>
+              {{ formatFileSize(state.selectedFile()?.size || 0) }}
+            </p>
+            <p>
+              <strong>Type:</strong>
+              {{ state.selectedFile()?.type }}
+            </p>
           </div>
         </mat-card-content>
       </mat-card>
     }
 
-    @if (uploadProgress?.status === "error") {
+    @if (state.uploadProgress()?.status === "error") {
       <mat-card class="result-card error">
         <mat-card-content>
           <div class="result-header">

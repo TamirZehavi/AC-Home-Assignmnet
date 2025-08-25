@@ -1,15 +1,14 @@
-import {
-  FileListResponse,
-  UploadFileResponse,
-} from '@ac-assignment/shared-types';
+import { API, Common } from '@ac-assignment/shared-types';
 import {
   BadRequestException,
   Controller,
   Delete,
   Get,
+  HttpCode,
   HttpStatus,
   InternalServerErrorException,
   Logger,
+  NotFoundException,
   Param,
   Post,
   Res,
@@ -22,10 +21,10 @@ import type { Response } from 'express';
 import { diskStorage } from 'multer';
 import path, { extname } from 'path';
 import { v4 as uuidv4 } from 'uuid';
-import { CsvParseResult, FilesUtil } from './utils/files.util';
+import { Job } from './entities/job.entity';
 import { UploadService } from './services/upload.service';
-import { FileHashUtil } from './utils/file-hash.util';
 import { EncryptionUtil } from './utils/encryption.util';
+import { FilesUtil } from './utils/files.util';
 
 const FILE_SIZE_LIMIT_MB = (sizeBytes: number) => sizeBytes * 1024 * 1024;
 
@@ -63,11 +62,11 @@ const uploadRequestOptions: MulterOptions = {
   storage,
   fileFilter: validateFile,
   limits: {
-    fileSize: FILE_SIZE_LIMIT_MB(10),
+    fileSize: FILE_SIZE_LIMIT_MB(1000),
   },
 };
 
-@Controller('files')
+@Controller(API.Controllers.Files)
 export class FilesController {
   private readonly logger = new Logger(FilesController.name);
 
@@ -77,99 +76,100 @@ export class FilesController {
     private readonly encryptionUtil: EncryptionUtil,
   ) {}
 
-  @Post('upload')
+  @Post(API.Endpoints.Upload)
+  @HttpCode(HttpStatus.ACCEPTED)
   @UseInterceptors(FileInterceptor('file', uploadRequestOptions))
   async uploadFile(
     @UploadedFile() file: Express.Multer.File,
     @Res({ passthrough: true }) res: Response,
-  ) {
+  ): Promise<void> {
     if (!file) {
       this.logger.error('No file uploaded');
       throw new BadRequestException('No file uploaded');
     }
 
-    //Check for duplicates
-    const fileHash = await FileHashUtil.calculateHash(file.path).catch(() => {
-      throw new InternalServerErrorException('File hash calculation failed');
+    const job: Job = await this.uploadService.createJob({
+      filePath: file.path,
     });
-    const existingFile = await this.uploadService.findFileByHash(fileHash);
-    if (existingFile) {
-      res.status(HttpStatus.OK);
-      const result: UploadFileResponse = {
-        isDuplicate: true,
-      };
-      return result;
+    const id = this.encryptionUtil.encrypt(job.id);
+    res.send({ jobId: id });
+    this.uploadService.processJob(file, job);
+    return;
+  }
+
+  @Get(`${API.Endpoints.JobStatus}/:jobId`)
+  async getJobStatus(
+    @Param('jobId') jobId: string,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<API.JobStatusResponse> {
+    const id = this.encryptionUtil.decrypt(jobId);
+    const job = await this.uploadService.getJob(id);
+    if (!job) {
+      throw new NotFoundException('Job not found');
+    }
+    switch (job.status) {
+      case Common.LoadingStatus.Loading:
+        res.status(HttpStatus.ACCEPTED);
+        break;
+      case Common.LoadingStatus.Success:
+        res.status(HttpStatus.OK);
+        break;
+      case Common.LoadingStatus.Error:
+        res.status(HttpStatus.INTERNAL_SERVER_ERROR);
+        break;
+    }
+    return { status: job.status };
+  }
+
+  @Get(`${API.Endpoints.Download}/:jobId`)
+  async downloadProcessedFile(
+    @Param('jobId') jobId: string,
+    @Res() res: Response,
+  ): Promise<void> {
+    const id = this.encryptionUtil.decrypt(jobId);
+    const job = await this.uploadService.getJob(id);
+
+    if (!job) {
+      throw new NotFoundException('Job not found');
     }
 
-    this.logger.log(`File uploaded successfully: ${file.originalname}`);
-    this.logger.debug(
-      `File details: ${JSON.stringify(
-        {
-          filename: file.filename,
-          originalname: file.originalname,
-          mimetype: file.mimetype,
-          size: file.size,
-          destination: file.destination,
-          path: file.path,
-        },
-        null,
-        2,
-      )}`,
-    );
+    if (job.status !== Common.LoadingStatus.Success) {
+      throw new BadRequestException('Job not completed successfully');
+    }
 
-    let csvParseResult: CsvParseResult | null = null;
-    this.logger.log('Parsing CSV file...');
+    if (!job.filePath) {
+      throw new InternalServerErrorException('File path not available');
+    }
+
+    const jsonPath = job.filePath.replace('.csv', '.json');
+
     try {
-      csvParseResult = await this.filesUtil.parseAndSaveAsJson(file.path);
-
-      if (csvParseResult?.success) {
-        this.logger.log(`CSV parsed successfully`);
-        this.logger.log('About to call uploadService.createUpload...');
-        const uploadRecord = await this.uploadService.createUpload({
-          originalName: file.originalname,
-          filename: path.basename(file.filename),
-          fileHash,
-        });
-        this.logger.log(`Upload record created with ID: ${uploadRecord.id}`);
-      } else {
-        throw new InternalServerErrorException(
-          csvParseResult.errorMessage || 'Parsing CSV failed',
-        );
+      const fs = require('fs');
+      if (!fs.existsSync(jsonPath)) {
+        throw new NotFoundException('Processed file not found');
       }
+
+      const filename = path.basename(jsonPath);
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="${filename}"`,
+      );
+      res.setHeader('Content-Type', 'application/json');
+
+      res.sendFile(path.resolve(jsonPath));
     } catch (error) {
-      this.logger.error(`CSV parsing error: ${error.message}`);
-      throw new BadRequestException(`CSV parsing error: ${error.message}`);
+      this.logger.error(`Download error: ${error.message}`);
+      throw new InternalServerErrorException('Failed to download file');
     }
-
-    const result: UploadFileResponse = {
-      isDuplicate: false,
-      file: {
-        filename: file.filename,
-        originalName: file.originalname,
-        size: file.size,
-        mimetype: file.mimetype,
-        path: file.path,
-      },
-    };
-    return result;
   }
 
-  @Get('status')
-  getUploadStatus() {
-    return {
-      message: 'Upload service is running',
-      maxFileSize: '1000MB',
-      allowedTypes: ['csv'],
-    };
-  }
-
-  @Get('list')
+  @Get(API.Endpoints.List)
   async getAllFiles() {
     const uploads = await this.uploadService.findAll();
 
     // Encrypt IDs and remove sensitive information
-    const safeUploads: FileListResponse = uploads.map((upload) => ({
-      id: this.encryptionUtil.encryptId(upload.id), // Encrypted ID
+    const safeUploads: API.FileListResponse = uploads.map((upload) => ({
+      id: this.encryptionUtil.encrypt(upload.id), // Encrypted ID
       name: upload.originalName,
     }));
 
@@ -180,7 +180,7 @@ export class FilesController {
   async getFileById(@Param('encryptedId') encryptedId: string) {
     try {
       // Decrypt the ID
-      const realId = this.encryptionUtil.decryptId(encryptedId);
+      const realId = this.encryptionUtil.decrypt(encryptedId);
       const upload = await this.uploadService.findOne(realId);
 
       if (!upload) {
@@ -203,20 +203,11 @@ export class FilesController {
     }
   }
 
-  @Get('stats')
-  async getUploadStats() {
-    const stats = await this.uploadService.getUploadStats();
-    return {
-      message: 'Upload statistics retrieved successfully',
-      stats,
-    };
-  }
-
-  @Delete('delete/:encryptedId')
+  @Delete(`${API.Endpoints.Delete}/:encryptedId`)
   async deleteOne(@Param('encryptedId') encryptedId: string) {
     try {
       // Decrypt the ID
-      const id = this.encryptionUtil.decryptId(encryptedId);
+      const id = this.encryptionUtil.decrypt(encryptedId);
       const upload = await this.uploadService.deleteOne(id);
 
       if (!upload) {
@@ -235,7 +226,7 @@ export class FilesController {
     }
   }
 
-  @Delete("deleteAll")
+  @Delete(API.Endpoints.DeleteAll)
   async deleteAll() {
     try {
       const uploads = await this.uploadService.findAll();

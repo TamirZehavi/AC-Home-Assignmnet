@@ -4,7 +4,7 @@ export type UploadProgress = {
   progress: number;
   status: Common.LoadingStatus;
   file?: File;
-  response?: API.UploadFileResponse;
+  response: API.UploadFileResponse | null;
 }
 
 export type UploadFileResponse = {

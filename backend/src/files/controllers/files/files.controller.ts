@@ -20,11 +20,11 @@ import { MulterOptions } from '@nestjs/platform-express/multer/interfaces/multer
 import type { Response } from 'express';
 import { diskStorage } from 'multer';
 import path, { extname } from 'path';
+import { EncryptionUtil } from 'src/common/utils/encryption.util';
+import { FilesUtil } from 'src/common/utils/files.util';
+import { UploadService } from 'src/files/services/upload.service';
 import { v4 as uuidv4 } from 'uuid';
-import { Job } from './entities/job.entity';
-import { UploadService } from './services/upload.service';
-import { EncryptionUtil } from './utils/encryption.util';
-import { FilesUtil } from './utils/files.util';
+import * as fs from 'fs';
 
 const FILE_SIZE_LIMIT_MB = (sizeBytes: number) => sizeBytes * 1024 * 1024;
 
@@ -62,7 +62,7 @@ const uploadRequestOptions: MulterOptions = {
   storage,
   fileFilter: validateFile,
   limits: {
-    fileSize: FILE_SIZE_LIMIT_MB(1000),
+    fileSize: FILE_SIZE_LIMIT_MB(200),
   },
 };
 
@@ -88,37 +88,13 @@ export class FilesController {
       throw new BadRequestException('No file uploaded');
     }
 
-    const job: Job = await this.uploadService.createJob({
+    const job = await this.uploadService.createJob({
       filePath: file.path,
     });
     const id = this.encryptionUtil.encrypt(job.id);
     res.send({ jobId: id });
     this.uploadService.processJob(file, job);
     return;
-  }
-
-  @Get(`${API.Endpoints.JobStatus}/:jobId`)
-  async getJobStatus(
-    @Param('jobId') jobId: string,
-    @Res({ passthrough: true }) res: Response,
-  ): Promise<API.JobStatusResponse> {
-    const id = this.encryptionUtil.decrypt(jobId);
-    const job = await this.uploadService.getJob(id);
-    if (!job) {
-      throw new NotFoundException('Job not found');
-    }
-    switch (job.status) {
-      case Common.LoadingStatus.Loading:
-        res.status(HttpStatus.ACCEPTED);
-        break;
-      case Common.LoadingStatus.Success:
-        res.status(HttpStatus.OK);
-        break;
-      case Common.LoadingStatus.Error:
-        res.status(HttpStatus.INTERNAL_SERVER_ERROR);
-        break;
-    }
-    return { status: job.status };
   }
 
   @Get(`${API.Endpoints.Download}/:jobId`)
@@ -144,7 +120,6 @@ export class FilesController {
     const jsonPath = job.filePath.replace('.csv', '.json');
 
     try {
-      const fs = require('fs');
       if (!fs.existsSync(jsonPath)) {
         throw new NotFoundException('Processed file not found');
       }
@@ -174,33 +149,6 @@ export class FilesController {
     }));
 
     return safeUploads;
-  }
-
-  @Get(':encryptedId')
-  async getFileById(@Param('encryptedId') encryptedId: string) {
-    try {
-      // Decrypt the ID
-      const realId = this.encryptionUtil.decrypt(encryptedId);
-      const upload = await this.uploadService.findOne(realId);
-
-      if (!upload) {
-        throw new BadRequestException('File not found');
-      }
-
-      // Return safe data without sensitive information
-      return {
-        message: 'File retrieved successfully',
-        file: {
-          id: encryptedId, // Return the encrypted ID
-          originalName: upload.originalName,
-          filename: upload.filename,
-          createdAt: upload.createdAt,
-          updatedAt: upload.updatedAt,
-        },
-      };
-    } catch (error) {
-      throw new BadRequestException('Invalid file ID');
-    }
   }
 
   @Delete(`${API.Endpoints.Delete}/:encryptedId`)

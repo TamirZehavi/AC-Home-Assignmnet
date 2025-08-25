@@ -1,19 +1,14 @@
-import {
-  Injectable,
-  InternalServerErrorException,
-  Logger,
-} from '@nestjs/common';
+import { Common } from '@ac-assignment/shared-types';
+import { Injectable, Logger } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Job } from 'src/entities/job.entity';
+import path from 'path';
 import { Repository } from 'typeorm';
 import { Upload } from '../entities/upload.entity';
-import { FileHashUtil } from 'src/utils/file-hash.util';
-// import { Common } from '@ac-assignment/shared-types';
-import { CsvParseResult, FilesUtil } from 'src/utils/files.util';
-import path from 'path';
-import { UpdateDto } from 'src/types/types';
-import { Common } from '@ac-assignment/shared-types';
-import { Cron } from '@nestjs/schedule';
+import { Job } from '../entities/job.entity';
+import { CsvParseResult, FilesUtil } from 'src/common/utils/files.util';
+import { UpdateDto } from 'src/common/types/types';
+import { FileHashUtil } from 'src/common/utils/file-hash.util';
 
 export interface CreateUploadDto {
   originalName: string;
@@ -120,7 +115,6 @@ export class UploadService {
 
   async processJob(file: Express.Multer.File, job: Job): Promise<void> {
     await this.updateJob(job.id, { status: Common.LoadingStatus.Loading });
-    //Check for duplicates
     const fileHash = await FileHashUtil.calculateHash(file.path);
     if (!fileHash) {
       await this.updateJob(job.id, {

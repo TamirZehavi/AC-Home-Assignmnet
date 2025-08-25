@@ -1,16 +1,8 @@
-import {
-  Component,
-  EventEmitter,
-  inject,
-  Input,
-  Output,
-  signal,
-  WritableSignal,
-} from '@angular/core';
+import { KeyValuePipe, NgClass } from '@angular/common';
+import { Component, EventEmitter, inject, Input, Output } from '@angular/core';
 import { MatIcon } from '@angular/material/icon';
 import { Router } from '@angular/router';
 import { AppRoutes } from '../../types/routes.types';
-import { KeyValuePipe, NgClass } from '@angular/common';
 
 @Component({
   selector: 'app-side-bar',

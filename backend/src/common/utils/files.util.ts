@@ -51,7 +51,6 @@ export class FilesUtil {
         })
         .on('end', () => {
           try {
-            // Save as JSON file
             fs.writeFileSync(jsonFilePath, JSON.stringify(results, null, 2));
 
             this.logger.log(

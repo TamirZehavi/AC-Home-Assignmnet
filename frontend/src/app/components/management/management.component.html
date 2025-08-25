@@ -10,7 +10,7 @@
       </tr>
     </thead>
     <tbody>
-      @for (file of files; track file) {
+      @for (file of files(); track file) {
         <tr>
           <td>{{ file.name }}</td>
           <td class="delete-icon" (click)="onDeleteFileClick(file.id)">

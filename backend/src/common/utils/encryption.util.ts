@@ -1,8 +1,16 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class EncryptionUtil {
-  private readonly secret = 'my;app;secret;key'; // In production, use environment variable
+  private readonly secret: string | undefined;
+
+  constructor(private configService: ConfigService) {
+    this.secret = this.configService.get<string>('SECRET_KEY');
+    if (!this.secret) {
+      throw new Error('SECRET_KEY environment variable is not set');
+    }
+  }
 
   /**
    * Simple ID obfuscation using Base64 encoding with a salt

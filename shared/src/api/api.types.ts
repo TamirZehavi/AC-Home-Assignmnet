@@ -21,6 +21,7 @@ export namespace API {
 
   export const Controllers = {
     Files: "files",
+    Jobs: "jobs",
   } as const;
   export type Controllers = Enum<typeof Controllers>;
 }

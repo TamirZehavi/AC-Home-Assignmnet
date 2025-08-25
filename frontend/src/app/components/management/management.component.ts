@@ -15,18 +15,17 @@ export class ManagementComponent implements OnInit {
   loadingStatus = signal<Common.LoadingStatus>('loading');
 
   isLoading = computed(() => {
-    const loadingState = this.loadingStatus();
-    return loadingState === 'loading';
+    return this.loadingStatus() === 'loading';
   });
 
-  files: API.FileListResponse = [];
+  files = signal<API.FileListResponse>([]);
 
   ngOnInit(): void {
     this.uploadService
       .getList()
       .pipe(
         tap((response) => {
-          this.files = response;
+          this.files.set(response);
           this.loadingStatus.set(Common.LoadingStatus.Success);
         }),
         catchError(() => {
@@ -38,7 +37,14 @@ export class ManagementComponent implements OnInit {
   }
 
   onDeleteFileClick(id: string) {
-    this.uploadService.delete(id).subscribe();
+    this.uploadService
+      .delete(id)
+      .pipe(
+        tap(() => {
+          this.files.set(this.files().filter((file) => file.id !== id));
+        }),
+      )
+      .subscribe();
   }
 
   onDeleteAllClick() {
@@ -46,7 +52,7 @@ export class ManagementComponent implements OnInit {
       .deleteAll()
       .pipe(
         tap(() => {
-          this.files = [];
+          this.files.set([]);
         }),
       )
       .subscribe();

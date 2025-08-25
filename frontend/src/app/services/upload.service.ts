@@ -5,21 +5,29 @@ import {
   HttpEventType,
   HttpRequest,
 } from '@angular/common/http';
-import { Injectable } from '@angular/core';
+import { inject, Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 import { UploadFileResponse, UploadProgress } from '../types/upload.types';
+import {
+  MatSnackBar,
+  MatSnackBarHorizontalPosition,
+  MatSnackBarVerticalPosition,
+} from '@angular/material/snack-bar';
 
-const DEFAULT_POLL_INTERVAL_MS = 5000;
+const DEFAULT_POLL_INTERVAL_MS = 3000;
 const MAX_POLL_ATTEMPTS = 100;
 
 @Injectable({
   providedIn: 'root',
 })
 export class UploadService {
-  private apiUrl = `/api/${API.Controllers.Files}`;
-
-  constructor(private http: HttpClient) {}
+  private apiUrls = {
+    jobs: `/api/${API.Controllers.Jobs}`,
+    files: `/api/${API.Controllers.Files}`,
+  };
+  http = inject(HttpClient);
+  snackBar = inject(MatSnackBar);
 
   uploadFile(file: File): Observable<UploadProgress> {
     const formData = new FormData();
@@ -27,7 +35,7 @@ export class UploadService {
 
     const req = new HttpRequest(
       'POST',
-      `${this.apiUrl}/${API.Endpoints.Upload}`,
+      `${this.apiUrls.files}/${API.Endpoints.Upload}`,
       formData,
       {
         reportProgress: true,
@@ -42,25 +50,26 @@ export class UploadService {
 
   getList() {
     return this.http.get<API.FileListResponse>(
-      `${this.apiUrl}/${API.Endpoints.List}`,
+      `${this.apiUrls.files}/${API.Endpoints.List}`,
     );
   }
 
   delete(id: string) {
-    return this.http.delete(`${this.apiUrl}/${API.Endpoints.Delete}/${id}`);
+    return this.http.delete(
+      `${this.apiUrls.files}/${API.Endpoints.Delete}/${id}`,
+    );
   }
 
   deleteAll() {
-    return this.http.delete(`${this.apiUrl}/${API.Endpoints.DeleteAll}`);
+    return this.http.delete(`${this.apiUrls.files}/${API.Endpoints.DeleteAll}`);
   }
 
   getJobStatus(jobId: string) {
     return this.http.get<API.JobStatusResponse>(
-      `${this.apiUrl}/${API.Endpoints.JobStatus}/${jobId}`,
+      `${this.apiUrls.jobs}/${API.Endpoints.JobStatus}/${jobId}`,
     );
   }
 
-  // Long-polling implementation
   pollJobStatus(
     jobId: string,
     maxAttempts: number = MAX_POLL_ATTEMPTS,
@@ -110,7 +119,6 @@ export class UploadService {
     });
   }
 
-  // Complete upload flow with auto-download
   uploadFileWithAutoDownload(file: File): Observable<UploadFileResponse> {
     return new Observable((observer) => {
       this.uploadFile(file).subscribe({
@@ -127,12 +135,11 @@ export class UploadService {
               next: (jobStatus) => {
                 observer.next({ jobStatus });
 
-                // Step 3: Auto-download if successful
                 if (jobStatus.status === Common.LoadingStatus.Success) {
                   this.downloadProcessedFile(jobId).subscribe({
                     next: (blob) => {
                       const filename = `${file.name.replace('.csv', '')}-processed.json`;
-                      this.triggerDownload(blob, filename);
+                      this.giveNotification(blob, filename);
                       observer.next({ downloadComplete: true });
                       observer.complete();
                     },
@@ -141,7 +148,6 @@ export class UploadService {
                     },
                   });
                 } else {
-                  // Job failed
                   observer.complete();
                 }
               },
@@ -159,12 +165,29 @@ export class UploadService {
   }
 
   downloadProcessedFile(jobId: string): Observable<Blob> {
-    return this.http.get(`${this.apiUrl}/${API.Endpoints.Download}/${jobId}`, {
-      responseType: 'blob',
-    });
+    return this.http.get(
+      `${this.apiUrls.files}/${API.Endpoints.Download}/${jobId}`,
+      {
+        responseType: 'blob',
+      },
+    );
   }
 
-  // Auto-download helper method
+  giveNotification(blob: Blob, filename: string) {
+    const horizontalPosition: MatSnackBarHorizontalPosition = 'end';
+    const verticalPosition: MatSnackBarVerticalPosition = 'bottom';
+    const snackbar = this.snackBar.open('JSON File Available', 'Download', {
+      horizontalPosition,
+      verticalPosition,
+    });
+    snackbar
+      .onAction()
+      .pipe()
+      .subscribe(() => {
+        this.triggerDownload(blob, filename);
+      });
+  }
+
   triggerDownload(blob: Blob, filename: string): void {
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -186,6 +209,7 @@ export class UploadService {
           progress: 0,
           status: 'loading',
           file,
+          response: null,
         };
 
       case HttpEventType.UploadProgress:
@@ -196,6 +220,7 @@ export class UploadService {
           progress,
           status: 'loading',
           file,
+          response: null,
         };
 
       case HttpEventType.Response:
@@ -203,7 +228,7 @@ export class UploadService {
           progress: 100,
           status: 'success',
           file,
-          response: event.body ?? undefined,
+          response: event.body,
         };
 
       default:
@@ -211,6 +236,7 @@ export class UploadService {
           progress: 0,
           status: 'pending',
           file,
+          response: null,
         };
     }
   }

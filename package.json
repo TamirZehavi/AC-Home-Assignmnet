@@ -13,8 +13,5 @@
   "dependencies": {
     "@angular/cli": "^19.2.15",
     "@nestjs/cli": "^11.0.10"
-  },
-  "devDependencies": {
-    "rimraf": "^5.0.10"
   }
 }

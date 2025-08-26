@@ -35,7 +35,7 @@ const UPLOAD_DIRECTORY =
 const storage = diskStorage({
   destination: UPLOAD_DIRECTORY,
   filename: (req, file, callback) => {
-    const savedFileName = `${uuidv4()}${extname(file?.originalname)}`;
+    const savedFileName = `${uuidv4()}${extname(file.originalname)}`;
     callback(null, savedFileName);
   },
 });
@@ -47,7 +47,7 @@ const validateFile = (
 ) => {
   const allowedTypes = /csv/;
   const fileExtension = allowedTypes.test(
-    extname(file?.originalname).toLowerCase(),
+    extname(file.originalname).toLowerCase(),
   );
   const mimeType = allowedTypes.test(file?.mimetype);
   const requestContentType = req.headers['content-type'];
@@ -148,7 +148,7 @@ export class FilesController {
 
     const safeUploads: API.FileListResponse = uploads.map((upload) => ({
       id: this.encryptionUtil.encrypt(upload.id),
-      name: upload?.originalName,
+      name: upload.originalName,
     }));
 
     return safeUploads;

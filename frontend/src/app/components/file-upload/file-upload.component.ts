@@ -105,7 +105,6 @@ export class FileUploadComponent {
         this.state.uploadProgress.set({
           progress: 0,
           status: 'error',
-          file,
           response: null,
         });
         this.state.uploading.set(false);

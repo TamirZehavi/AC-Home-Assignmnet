@@ -43,7 +43,7 @@ export class UploadService {
     );
 
     return this.http.request<API.UploadFileResponse>(req).pipe(
-      map((event) => this.determineProgress(event, file)),
+      map((event) => this.determineProgress(event)),
       catchError((error) => of(error)),
     );
   }
@@ -201,14 +201,12 @@ export class UploadService {
 
   private determineProgress(
     event: HttpEvent<API.UploadFileResponse>,
-    file: File,
   ): UploadProgress {
     switch (event.type) {
       case HttpEventType.Sent:
         return {
           progress: 0,
           status: 'loading',
-          file,
           response: null,
         };
 
@@ -219,7 +217,6 @@ export class UploadService {
         return {
           progress,
           status: 'loading',
-          file,
           response: null,
         };
 
@@ -227,7 +224,6 @@ export class UploadService {
         return {
           progress: 100,
           status: 'success',
-          file,
           response: event.body,
         };
 
@@ -235,7 +231,6 @@ export class UploadService {
         return {
           progress: 0,
           status: 'pending',
-          file,
           response: null,
         };
     }

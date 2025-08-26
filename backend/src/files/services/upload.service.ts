@@ -149,7 +149,7 @@ export class UploadService {
         this.logger.log(`CSV parsed successfully`);
         this.logger.log('About to call uploadService.createUpload...');
         const uploadRecord = await this.createUpload({
-          originalName: file?.originalname,
+          originalName: file.originalname,
           filename: path.basename(file?.filename),
           fileHash,
         });

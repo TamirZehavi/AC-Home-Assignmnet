@@ -47,9 +47,9 @@ const validateFile = (
 ) => {
   const allowedTypes = /csv/;
   const fileExtension = allowedTypes.test(
-    extname(file.originalname).toLowerCase(),
+    extname(file?.originalname).toLowerCase(),
   );
-  const mimeType = allowedTypes.test(file.mimetype);
+  const mimeType = allowedTypes.test(file?.mimetype);
   const requestContentType = req.headers['content-type'];
   console.log('Request Content-Type:', requestContentType);
 

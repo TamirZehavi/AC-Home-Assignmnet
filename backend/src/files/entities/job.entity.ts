@@ -1,5 +1,5 @@
 import { Common } from '@ac-assignment/shared-types';
-import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
 
 @Entity('jobs')
 export class Job {
@@ -14,4 +14,10 @@ export class Job {
 
   @Column({ nullable: true })
   error: string;
+
+  @CreateDateColumn()
+  createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
 }

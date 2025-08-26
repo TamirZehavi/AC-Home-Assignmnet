@@ -6,11 +6,10 @@ import { INestApplication } from '@nestjs/common';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-
-  // Set global prefix for API routes
   app.setGlobalPrefix('api');
   await connectToAngularSSR(app);
   const port = process.env.PORT ?? 3000;
+  app.enableCors();
   await app.listen(port);
 }
 
@@ -29,14 +28,11 @@ async function connectToAngularSSR(app: INestApplication) {
     const angularAppUrl = pathToFileURL(angularAppPath).href;
     const angularApp = await import(angularAppUrl);
 
-    // Use Angular app for all non-API routes ONLY
     app.use((req, res, next) => {
-      // Skip Angular SSR for API routes
       if (req.path.startsWith('/api')) {
-        return next(); // Let NestJS handle API routes
+        return next(); 
       }
 
-      // Use Angular SSR for all other routes
       return angularApp.default(req, res, next);
     });
 

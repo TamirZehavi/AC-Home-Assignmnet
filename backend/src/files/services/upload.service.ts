@@ -7,8 +7,10 @@ import { Repository } from 'typeorm';
 import { Upload } from '../entities/upload.entity';
 import { Job } from '../entities/job.entity';
 import { CsvParseResult, FilesUtil } from 'src/common/utils/files.util';
-import { UpdateDto } from 'src/common/types/types';
+import { UpdateDto } from 'src/common/types/dto.types';
 import { FileHashUtil } from 'src/common/utils/file-hash.util';
+import { SafeConfigService } from 'src/common/config/safe-config.service';
+import { EnvironmentVariables } from 'src/common/types/env.types';
 
 export interface CreateUploadDto {
   originalName: string;
@@ -21,6 +23,8 @@ export interface UpdateUploadParsingDto {
   fileName: string;
 }
 
+const CLEANUP_CRON = process.env[EnvironmentVariables.JobCleanupCron] || '0 0 * * *';
+
 @Injectable()
 export class UploadService {
   private readonly logger = new Logger(UploadService.name);
@@ -31,20 +35,23 @@ export class UploadService {
     @InjectRepository(Job)
     private readonly jobRepository: Repository<Job>,
     private filesUtil: FilesUtil,
+    private configService: SafeConfigService,
   ) {}
 
-  @Cron('0 0 * * *')
+  @Cron(CLEANUP_CRON) // This will be overridden by the dynamic cron if CRON_EXPRESSION is set
   async cleanupOldJobs() {
-    const threeDaysAgo = new Date();
-    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+    // Now you get full type safety - JOB_CLEANUP_DAYS is validated and returns a number
+    const cleanupDays = this.configService.get(EnvironmentVariables.JobCleanupDays, 3);
+    const cleanupDate = new Date();
+    cleanupDate.setDate(cleanupDate.getDate() - cleanupDays);
 
-    await this.jobRepository
+    const deletedJobs = await this.jobRepository
       .createQueryBuilder()
       .delete()
-      .where('createdAt < :date', { date: threeDaysAgo })
+      .where('createdAt < :date', { date: cleanupDate })
       .execute();
 
-    this.logger.log('Old jobs cleaned up');
+    this.logger.log(`Cleaned up ${deletedJobs.affected} old jobs older than ${cleanupDays} days`);
   }
 
   async createUpload(createUploadDto: CreateUploadDto): Promise<Upload> {

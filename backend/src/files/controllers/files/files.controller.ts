@@ -18,18 +18,22 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { MulterOptions } from '@nestjs/platform-express/multer/interfaces/multer-options.interface';
 import type { Response } from 'express';
+import * as fs from 'fs';
 import { diskStorage } from 'multer';
 import path, { extname } from 'path';
+import { EnvironmentVariables } from 'src/common/types/env.types';
 import { EncryptionUtil } from 'src/common/utils/encryption.util';
 import { FilesUtil } from 'src/common/utils/files.util';
 import { UploadService } from 'src/files/services/upload.service';
 import { v4 as uuidv4 } from 'uuid';
-import * as fs from 'fs';
 
-const FILE_SIZE_LIMIT_MB = (sizeBytes: number) => sizeBytes * 1024 * 1024;
+const FILE_SIZE_LIMIT_MB =
+  parseInt(process.env[EnvironmentVariables.MaxFileSizeMB] || '200', 10) * 1024 * 1024;
+const UPLOAD_DIRECTORY =
+  process.env[EnvironmentVariables.UploadDirectory] || './uploads';
 
 const storage = diskStorage({
-  destination: './uploads',
+  destination: UPLOAD_DIRECTORY,
   filename: (req, file, callback) => {
     const savedFileName = `${uuidv4()}${extname(file.originalname)}`;
     callback(null, savedFileName);
@@ -62,7 +66,7 @@ const uploadRequestOptions: MulterOptions = {
   storage,
   fileFilter: validateFile,
   limits: {
-    fileSize: FILE_SIZE_LIMIT_MB(200),
+    fileSize: FILE_SIZE_LIMIT_MB,
   },
 };
 
@@ -142,9 +146,8 @@ export class FilesController {
   async getAllFiles() {
     const uploads = await this.uploadService.findAll();
 
-    // Encrypt IDs and remove sensitive information
     const safeUploads: API.FileListResponse = uploads.map((upload) => ({
-      id: this.encryptionUtil.encrypt(upload.id), // Encrypted ID
+      id: this.encryptionUtil.encrypt(upload.id),
       name: upload.originalName,
     }));
 
@@ -154,7 +157,6 @@ export class FilesController {
   @Delete(`${API.Endpoints.Delete}/:encryptedId`)
   async deleteOne(@Param('encryptedId') encryptedId: string) {
     try {
-      // Decrypt the ID
       const id = this.encryptionUtil.decrypt(encryptedId);
       const upload = await this.uploadService.deleteOne(id);
 

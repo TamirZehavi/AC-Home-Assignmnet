@@ -2,6 +2,9 @@
   <p>Loading...</p>
 } @else {
   <button (click)="onDeleteAllClick()">Delete All</button>
+  @if (deleteAllError) {
+    <div class="error">{{ deleteAllError }}</div>
+  }
   <table>
     <thead>
       <tr>
@@ -13,10 +16,17 @@
       @for (file of files(); track file) {
         <tr>
           <td>{{ file.name }}</td>
-          <td class="delete-icon" (click)="onDeleteFileClick(file.id)">
+          <td
+            class="delete-icon"
+            [ngClass]="{disabled: file.loading}"
+            (click)="file.loading ? null : onDeleteFileClick(file.id)"
+          >
             <mat-icon>delete</mat-icon>
           </td>
         </tr>
+        @if (file.error) {
+          <div class="error">Failed to delete file</div>
+        }
       }
     </tbody>
   </table>

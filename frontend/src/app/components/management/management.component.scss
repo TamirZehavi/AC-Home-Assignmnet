@@ -1,7 +1,16 @@
+$delete-icon-color: black;
 .delete-icon {
-    cursor: pointer;
-    color: gray;
-    &:hover {
-        color: black;
-    }
+  cursor: pointer;
+  color: gray;
+  &:hover {
+    color: $delete-icon-color;
+  }
+  &.disabled {
+    cursor: default;
+    color: rgba($delete-icon-color, 0.5);
+  }
+}
+
+.error {
+  color: red;
 }

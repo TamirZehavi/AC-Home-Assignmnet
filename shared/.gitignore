@@ -1,2 +1,8 @@
 node_modules
 dist
+
+# Generated files in source (should not be committed)
+src/**/*.js
+src/**/*.d.ts
+src/**/*.d.ts.map
+src/**/*.js.map

@@ -1,11 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import csv from 'csv-parser';
+import { Transform } from 'stream';
 import * as fs from 'fs';
 import * as path from 'path';
 
 export interface CsvParseResult {
   success: boolean;
-  data?: any[];
   errorMessage?: string;
 }
 
@@ -14,8 +14,7 @@ export class FilesUtil {
   private readonly logger = new Logger(FilesUtil.name);
 
   async parseAndSaveAsJson(csvFilePath: string): Promise<CsvParseResult> {
-    return new Promise((resolve) => {
-      const results: any[] = [];
+    return new Promise((resolve, reject) => {
       const fileName = path.basename(csvFilePath, '.csv');
       const jsonFilePath = path.join(
         path.dirname(csvFilePath),
@@ -24,7 +23,6 @@ export class FilesUtil {
 
       this.logger.log(`Starting to parse CSV: ${csvFilePath}`);
 
-      // Check if file exists
       if (!fs.existsSync(csvFilePath)) {
         this.logger.error(`CSV file not found: ${csvFilePath}`);
         const result: CsvParseResult = {
@@ -34,43 +32,43 @@ export class FilesUtil {
         return resolve(result);
       }
 
+      const writeStream = fs.createWriteStream(jsonFilePath);
+      
+      let isFirst = true;
+      let hasData = false;
+
+      const transformStream = new Transform({
+        objectMode: true,
+        transform(chunk, encoding, callback) {
+          if (isFirst) {
+            writeStream.write('[');
+            isFirst = false;
+            hasData = true;
+            callback(null, JSON.stringify(chunk));
+          } else {
+            callback(null, ',' + JSON.stringify(chunk));
+          }
+        },
+        flush(callback) {
+          if (hasData) {
+            writeStream.write(']');
+          } else {
+            writeStream.write('[]');
+          }
+          callback();
+        }
+      });
+
       fs.createReadStream(csvFilePath)
         .pipe(csv())
-        .on('data', (data) => {
-          // Clean up the data - remove empty values and trim strings
-          const cleanedData: any = {};
-          Object.keys(data).forEach((key) => {
-            const value = data[key];
-            if (typeof value === 'string') {
-              cleanedData[key.trim()] = value.trim();
-            } else {
-              cleanedData[key.trim()] = value;
-            }
-          });
-          results.push(cleanedData);
-        })
-        .on('end', () => {
-          try {
-            fs.writeFileSync(jsonFilePath, JSON.stringify(results, null, 2));
-
-            this.logger.log(
-              `Successfully parsed ${results.length} rows from CSV`,
-            );
-            this.logger.log(`JSON saved to: ${jsonFilePath}`);
-            const result: CsvParseResult = {
-              success: true,
-              data: results,
-            };
-
-            resolve(result);
-          } catch (error) {
-            this.logger.error(`Error saving JSON file: ${error.message}`);
-            const result: CsvParseResult = {
-              success: false,
-              errorMessage: `Error saving JSON: ${error.message}`,
-            };
-            resolve(result);
-          }
+        .pipe(transformStream)
+        .pipe(writeStream)
+        .on('finish', () => {
+          this.logger.log(`Successfully parsed CSV and saved to JSON`);
+          const result: CsvParseResult = {
+            success: true,
+          };
+          resolve(result);
         })
         .on('error', (error) => {
           this.logger.error(`Error parsing CSV: ${error.message}`);
@@ -102,19 +100,33 @@ export class FilesUtil {
     });
   }
 
-  // Alternative: Add a specific method for uploads folder
   async deleteUploadFile(filename: string): Promise<void> {
     const baseName = path.parse(filename).name;
     const uploadsDir = path.join(process.cwd(), 'uploads');
 
     const csvPath = path.join(uploadsDir, `${baseName}.csv`);
     const jsonPath = path.join(uploadsDir, `${baseName}.json`);
+
+    let jsonDeleted = false;
+    let csvDeleted = false;
     try {
-      await this.deleteFile(csvPath);
-      await this.deleteFile(jsonPath);
+      await this.deleteFile(csvPath).then(() => {
+        csvDeleted = true;
+      });
     } catch (error) {
-      this.logger.error(`Error deleting upload files: ${error.message}`);
-      throw Error;
+      this.logger.error(`Error deleting csv file: ${error.message}`);
+    }
+
+    try {
+      await this.deleteFile(jsonPath).then(() => {
+        jsonDeleted = true;
+      });
+    } catch (error) {
+      this.logger.error(`Error deleting json file: ${error.message}`);
+    }
+
+    if (!csvDeleted && !jsonDeleted) {
+      throw new Error('Failed to delete uploaded files');
     }
   }
 }

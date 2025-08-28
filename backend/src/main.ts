@@ -2,11 +2,23 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { join } from 'path';
 import { pathToFileURL } from 'url';
-import { INestApplication } from '@nestjs/common';
+import { INestApplication, ValidationPipe } from '@nestjs/common';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.setGlobalPrefix('api');
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true, 
+      forbidNonWhitelisted: true, 
+      transform: false, 
+      transformOptions: {
+        enableImplicitConversion: true, 
+      },
+      errorHttpStatusCode: 400,
+      disableErrorMessages: false, 
+    }),
+  );
   await connectToAngularSSR(app);
   const port = process.env.PORT ?? 3000;
   app.enableCors();
@@ -30,7 +42,7 @@ async function connectToAngularSSR(app: INestApplication) {
 
     app.use((req, res, next) => {
       if (req.path.startsWith('/api')) {
-        return next(); 
+        return next();
       }
 
       return angularApp.default(req, res, next);

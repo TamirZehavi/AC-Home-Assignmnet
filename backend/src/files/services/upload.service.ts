@@ -7,7 +7,7 @@ import { Repository } from 'typeorm';
 import { Upload } from '../entities/upload.entity';
 import { Job } from '../entities/job.entity';
 import { CsvParseResult, FilesUtil } from 'src/common/utils/files.util';
-import { UpdateDto } from 'src/common/types/dto.types';
+import { UpdateEntity } from 'src/common/types/util.types';
 import { FileHashUtil } from 'src/common/utils/file-hash.util';
 import { SafeConfigService } from 'src/common/config/safe-config.service';
 import { EnvironmentVariables } from 'src/common/types/env.types';
@@ -112,7 +112,7 @@ export class UploadService {
     return job;
   }
 
-  async updateJob(id: number, updateStatusDto: UpdateDto<Job>) {
+  async updateJob(id: number, updateStatusDto: UpdateEntity<Job>) {
     await this.jobRepository.update(id, {
       status: updateStatusDto.status,
       error: updateStatusDto.error,

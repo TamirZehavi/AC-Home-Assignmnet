@@ -17,18 +17,25 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { MulterOptions } from '@nestjs/platform-express/multer/interfaces/multer-options.interface';
+import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import * as fs from 'fs';
 import { diskStorage } from 'multer';
 import path, { extname } from 'path';
+import { throttles } from 'src/common/config/throttle.consts';
+import { EncryptedIdDto } from 'src/common/dto/validation.dto';
 import { EnvironmentVariables } from 'src/common/types/env.types';
+import { ThrottleType } from 'src/common/types/util.types';
 import { EncryptionUtil } from 'src/common/utils/encryption.util';
 import { FilesUtil } from 'src/common/utils/files.util';
 import { UploadService } from 'src/files/services/upload.service';
+import { DataSource } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 
 const FILE_SIZE_LIMIT_MB =
-  parseInt(process.env[EnvironmentVariables.MaxFileSizeMB] || '200', 10) * 1024 * 1024;
+  parseInt(process.env[EnvironmentVariables.MaxFileSizeMB] || '200', 10) *
+  1024 *
+  1024;
 const UPLOAD_DIRECTORY =
   process.env[EnvironmentVariables.UploadDirectory] || './uploads';
 
@@ -82,6 +89,7 @@ export class FilesController {
 
   @Post(API.Endpoints.Upload)
   @HttpCode(HttpStatus.ACCEPTED)
+  @Throttle({ default: throttles[ThrottleType.Short] })
   @UseInterceptors(FileInterceptor('file', uploadRequestOptions))
   async uploadFile(
     @UploadedFile() file: Express.Multer.File,
@@ -101,12 +109,12 @@ export class FilesController {
     return;
   }
 
-  @Get(`${API.Endpoints.Download}/:jobId`)
+  @Get(`${API.Endpoints.Download}/:id`)
   async downloadProcessedFile(
-    @Param('jobId') jobId: string,
+    @Param() jobIdDto: EncryptedIdDto,
     @Res() res: Response,
   ): Promise<void> {
-    const id = this.encryptionUtil.decrypt(jobId);
+    const id = this.encryptionUtil.decrypt(jobIdDto.id);
     const job = await this.uploadService.getJob(id);
 
     if (!job) {
@@ -154,10 +162,10 @@ export class FilesController {
     return safeUploads;
   }
 
-  @Delete(`${API.Endpoints.Delete}/:encryptedId`)
-  async deleteOne(@Param('encryptedId') encryptedId: string) {
+  @Delete(`${API.Endpoints.Delete}/:id`)
+  async deleteOne(@Param() encryptedIdDto: EncryptedIdDto) {
     try {
-      const id = this.encryptionUtil.decrypt(encryptedId);
+      const id = this.encryptionUtil.decrypt(encryptedIdDto.id);
       const upload = await this.uploadService.deleteOne(id);
 
       if (!upload) {
@@ -165,8 +173,7 @@ export class FilesController {
       }
 
       await this.filesUtil.deleteUploadFile(upload.filename).catch(() => {
-        //rollback
-        this.uploadService.addOne(upload);
+        this.logger.error(`Failed to delete file: ${upload.filename}`);
         throw new InternalServerErrorException('Local file deletion failed');
       });
 

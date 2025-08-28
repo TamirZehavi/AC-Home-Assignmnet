@@ -1,6 +1,6 @@
 # AC Home Assignment
 
-A full-stack application with Angular frontend and NestJS backend.
+A full-stack application with Angular frontend and NestJS backend for handling file uploads
 
 ## Project Structure
 

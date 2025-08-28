@@ -31,7 +31,8 @@ app.get(
   '**',
   express.static(browserDistFolder, {
     maxAge: '1y',
-    index: 'index.html'
+    index: 'index.html',
+    cacheControl: false,
   }),
 );
 

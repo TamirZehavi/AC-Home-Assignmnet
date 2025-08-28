@@ -8,6 +8,7 @@ import {
   Res,
 } from '@nestjs/common';
 import type { Response } from 'express';
+import { EncryptedIdDto } from 'src/common/dto/validation.dto';
 import { EncryptionUtil } from 'src/common/utils/encryption.util';
 import { UploadService } from 'src/files/services/upload.service';
 
@@ -17,12 +18,12 @@ export class JobsController {
     private encryptionUtil: EncryptionUtil,
     private uploadService: UploadService,
   ) {}
-  @Get(`${API.Endpoints.JobStatus}/:jobId`)
+  @Get(`${API.Endpoints.JobStatus}/:id`)
   async getJobStatus(
-    @Param('jobId') jobId: string,
+    @Param() jobIdDto: EncryptedIdDto,
     @Res({ passthrough: true }) res: Response,
   ): Promise<API.JobStatusResponse> {
-    const id = this.encryptionUtil.decrypt(jobId);
+    const id = this.encryptionUtil.decrypt(jobIdDto.id);
     const job = await this.uploadService.getJob(id);
     if (!job) {
       throw new NotFoundException('Job not found');

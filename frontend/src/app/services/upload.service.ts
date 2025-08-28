@@ -176,7 +176,7 @@ export class UploadService {
   giveNotification(blob: Blob, filename: string) {
     const horizontalPosition: MatSnackBarHorizontalPosition = 'end';
     const verticalPosition: MatSnackBarVerticalPosition = 'bottom';
-    const snackbar = this.snackBar.open('JSON File Available', 'Download', {
+    const snackbar = this.snackBar.open(`'${filename}' is available`, 'Download', {
       horizontalPosition,
       verticalPosition,
     });

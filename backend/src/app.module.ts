@@ -23,7 +23,7 @@ import { FilesModule } from './files/files.module';
       useFactory: (configService: SafeConfigService) => ({
         type: 'sqlite',
         database: configService.get(
-          EnvironmentVariables.DatabasePath,
+          EnvironmentVariables.DatabaseName,
           'uploads.db',
         ),
         entities: [Upload, Job],

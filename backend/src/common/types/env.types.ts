@@ -6,7 +6,7 @@ export const EnvironmentVariables = {
   UploadDirectory: 'UPLOAD_DIRECTORY',
   JobCleanupDays: 'JOB_CLEANUP_DAYS',
   JobCleanupCron: 'JOB_CLEANUP_CRON',
-  DatabasePath: 'DATABASE_PATH',
+  DatabaseName: 'DATABASE_NAME',
 } as const;
 
 export type EnvironmentVariables = Enum<typeof EnvironmentVariables>;
@@ -17,5 +17,5 @@ export type EnvironmentVariableTypes = {
   [EnvironmentVariables.UploadDirectory]: string;
   [EnvironmentVariables.JobCleanupDays]: number;
   [EnvironmentVariables.JobCleanupCron]: string;
-  [EnvironmentVariables.DatabasePath]: string;
+  [EnvironmentVariables.DatabaseName]: string;
 };

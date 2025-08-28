@@ -89,7 +89,6 @@ export class FilesController {
 
   @Post(API.Endpoints.Upload)
   @HttpCode(HttpStatus.ACCEPTED)
-  @Throttle({ default: throttles[ThrottleType.Short] })
   @UseInterceptors(FileInterceptor('file', uploadRequestOptions))
   async uploadFile(
     @UploadedFile() file: Express.Multer.File,
